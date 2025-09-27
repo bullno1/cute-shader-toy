@@ -296,7 +296,7 @@ main(int argc, const char* argv[]) {
 	CF_Sprite sprite = cf_make_demo_sprite();
 	cf_sprite_play(&sprite, "hold_down");
 	float draw_scale = 5.f;
-	float attributes[4] = { 1.f, 1.f, 1.f, 1.f };
+	float attributes[4] = { 0 };
 	int attribute_type = 0;
 	const char* attribute_types[] = {
 		"Color",
