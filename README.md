@@ -23,5 +23,11 @@ The following keys are recognized.
     This is the default.
   * `time`: Automatically set to [`CF_SECONDS`](https://randygaul.github.io/cute_framework/time/cf_seconds/) every frame.
   * `delta_time`: Automatically set to [`CF_DELTA_TIME`](https://randygaul.github.io/cute_framework/time/cf_delta_time/) every frame.
+* `default` (optional): Default value for each uniform.
+
+  * `default`, `default.x`, `default.r`, `default.u`, `default.s`: Set the first component.
+  * `default.y`, `default.g`, `default.v`, `default.t`: Set the second component.
+  * `default.z`, `default.b`, `default.p`: Set the third component.
+  * `default.w`, `default.a`, `default.q`: Set the fourth component.
 
 For an example, refer to [glitch.glsl](./glitch.glsl).
