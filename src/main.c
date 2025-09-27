@@ -124,6 +124,7 @@ read_file(const char* path) {
 
 static void
 reload_shader(const char* source) {
+	printf("Reloading shader\n");
 	CF_Shader shader = cf_make_draw_shader_from_source(source);
 	if (shader.id == 0) { return; }
 
@@ -200,6 +201,7 @@ reload_shader(const char* source) {
 			hadd(current_uniforms, uniform.name, uniform);
 		}
 	}
+	printf("Shader reloaded\n");
 }
 
 static void
