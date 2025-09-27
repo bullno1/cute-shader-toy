@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <byteshift_memmem.h>
 
 #define DECORATOR_PREFIX "// @param "
@@ -19,7 +20,19 @@ typedef struct {
 	const str_t source;
 } parse_state_t;
 
+typedef struct {
+	const char* name;
+	CF_UniformType type;
+	bool edit_as_color;
+	union {
+		int int_value[4];
+		float float_value[4];
+	} data;
+} uniform_t;
+
 static CF_Shader current_shader = { 0 };
+static htbl uniform_t* previous_uniforms = NULL;
+static htbl uniform_t* current_uniforms = NULL;
 
 static bool
 next_line(parse_state_t* state, str_t* line) {
@@ -85,7 +98,13 @@ next_kv(parse_state_t* state, str_t* key, str_t* value) {
 		if (ch == '=') { break; }
 	}
 
-	return next_word(state, value);
+	if (!next_word(state, value)) { return false; }
+
+	++state->pos;
+	// Null-terminate
+	((char*)key->str)[key->len] = '\0';
+	((char*)value->str)[value->len] = '\0';
+	return true;
 }
 
 static char*
@@ -116,6 +135,11 @@ reload_shader(const char* source) {
 
 	parse_state_t state = { .source = { .str = source, .len = strlen(source) }};
 	str_t line;
+
+	htbl uniform_t* tmp = current_uniforms;
+	current_uniforms = previous_uniforms;
+	previous_uniforms = tmp;
+	hclear(current_uniforms);
 	while (next_line(&state, &line)) {
 		const char* decorator_pos = byteshift_memmem(
 			line.str, line.len,
@@ -131,13 +155,49 @@ reload_shader(const char* source) {
 				.len = line.len - (decorator_pos - line.str) - DECORATOR_LEN,
 			},
 		};
+
+		uniform_t uniform = { 0 };
+
 		str_t key, value;
 		while (next_kv(&decorator_state, &key, &value)) {
-			printf(
-				"%.*s = %.*s\n",
-				(int)key.len, key.str,
-				(int)value.len, value.str
-			);
+			if (strcmp(key.str, "name") == 0) {
+				uniform.name = value.str;
+			} else if (strcmp(key.str, "type") == 0) {
+				if (strcmp(value.str, "int") == 0) {
+					uniform.type = CF_UNIFORM_TYPE_INT;
+				} else if (strcmp(value.str, "int2") == 0) {
+					uniform.type = CF_UNIFORM_TYPE_INT2;
+				} else if (strcmp(value.str, "int4") == 0) {
+					uniform.type = CF_UNIFORM_TYPE_INT4;
+				} else if (strcmp(value.str, "float") == 0) {
+					uniform.type = CF_UNIFORM_TYPE_FLOAT;
+				} else if (strcmp(value.str, "float2") == 0) {
+					uniform.type = CF_UNIFORM_TYPE_FLOAT2;
+				} else if (strcmp(value.str, "float3") == 0) {
+					uniform.type = CF_UNIFORM_TYPE_FLOAT3;
+				} else if (strcmp(value.str, "float4") == 0) {
+					uniform.type = CF_UNIFORM_TYPE_FLOAT4;
+				} else if (strcmp(value.str, "color3") == 0) {
+					uniform.edit_as_color = true;
+					uniform.type = CF_UNIFORM_TYPE_FLOAT3;
+				} else if (
+					strcmp(value.str, "color") == 0
+					||
+					strcmp(value.str, "color4") == 0
+				) {
+					uniform.edit_as_color = true;
+					uniform.type = CF_UNIFORM_TYPE_FLOAT4;
+				}
+			}
+		}
+
+		if (uniform.name != NULL && uniform.type != CF_UNIFORM_TYPE_UNKNOWN) {
+			uniform.name = cf_sintern(uniform.name);
+			uniform_t old_uniform = previous_uniforms != NULL
+				? hfind(previous_uniforms, uniform.name)
+				: uniform;
+			uniform.data = old_uniform.data;
+			hadd(current_uniforms, uniform.name, uniform);
 		}
 	}
 }
@@ -173,15 +233,82 @@ main(int argc, const char* argv[]) {
 	bresmon_watch(monitor, argv[1], handle_shader_changed, NULL);
 
 	CF_Sprite sprite = cf_make_demo_sprite();
+	cf_sprite_play(&sprite, "spin");
+	float draw_scale = 5.f;
+	float attributes[4] = { 1.f, 1.f, 1.f, 1.f };
+	int attribute_type = 0;
+	const char* attribute_types[] = {
+		"Color",
+		"Vector",
+		0
+	};
 
 	while (cf_app_is_running()) {
+		bresmon_check(monitor, false);
+
 		cf_app_update(NULL);
 		cf_sprite_update(&sprite);
 
 		if (current_shader.id) {  cf_draw_push_shader(current_shader); }
+		cf_draw_push_vertex_attributes(attributes[0], attributes[1], attributes[2], attributes[3]);
+		cf_draw_scale(draw_scale, draw_scale);
+		for (int i = 0; i < hsize(current_uniforms); ++i) {
+			uniform_t* uniform = &current_uniforms[i];
+			cf_draw_set_uniform(uniform->name, &uniform->data, uniform->type, 1);
+		}
+
 		cf_draw_sprite(&sprite);
 
-		if (igBegin("Shader params", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+		if (igBegin("Shader", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+			igSeparatorText("Sprite");
+			igInputFloat("Scale", &draw_scale, 1.f, 1.f, "%f", ImGuiInputTextFlags_None);
+
+			igSeparatorText("Uniforms");
+			for (int i = 0; i < hsize(current_uniforms); ++i) {
+				uniform_t* uniform = &current_uniforms[i];
+				switch (uniform->type) {
+					case CF_UNIFORM_TYPE_INT:
+						igInputInt(uniform->name, uniform->data.int_value, 1, 1, ImGuiInputTextFlags_None);
+						break;
+					case CF_UNIFORM_TYPE_INT2:
+						igInputInt2(uniform->name, uniform->data.int_value, ImGuiInputTextFlags_None);
+						break;
+					case CF_UNIFORM_TYPE_INT4:
+						igInputInt4(uniform->name, uniform->data.int_value, ImGuiInputTextFlags_None);
+						break;
+					case CF_UNIFORM_TYPE_FLOAT:
+						igInputFloat(uniform->name, uniform->data.float_value, 0.1f, 1.f, "%f", ImGuiInputTextFlags_None);
+						break;
+					case CF_UNIFORM_TYPE_FLOAT2:
+						igInputFloat2(uniform->name, uniform->data.float_value, "%f", ImGuiInputTextFlags_None);
+						break;
+					case CF_UNIFORM_TYPE_FLOAT3:
+						if (uniform->edit_as_color) {
+							igColorEdit3(uniform->name, uniform->data.float_value, ImGuiInputTextFlags_None);
+						} else {
+							igInputFloat3(uniform->name, uniform->data.float_value, "%f", ImGuiInputTextFlags_None);
+						}
+						break;
+					case CF_UNIFORM_TYPE_FLOAT4:
+						if (uniform->edit_as_color) {
+							igColorEdit4(uniform->name, uniform->data.float_value, ImGuiInputTextFlags_None);
+						} else {
+							igInputFloat4(uniform->name, uniform->data.float_value, "%f", ImGuiInputTextFlags_None);
+						}
+						break;
+					default:
+						break;
+				}
+			}
+
+			igSeparatorText("Vertex attribute");
+			igCombo_Str_arr("Attribute type", &attribute_type, attribute_types, 2, -1);
+
+			if (attribute_type == 0) {
+				igColorEdit4("Color", attributes, ImGuiColorEditFlags_None);
+			} else {
+				igInputFloat4("Vector", attributes, "%f", ImGuiInputTextFlags_None);
+			}
 		}
 		igEnd();
 
@@ -190,6 +317,8 @@ main(int argc, const char* argv[]) {
 
 	cf_destroy_app();
 	bresmon_destroy(monitor);
+	hfree(previous_uniforms);
+	hfree(current_uniforms);
 
 	return 0;
 }

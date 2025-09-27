@@ -1,5 +1,5 @@
 layout (set = 3, binding = 1) uniform shd_uniforms {
-	// @param name=tint_color type=color
+	// @param name=tint_color type=color4
     vec4 tint_color;
 };
 
