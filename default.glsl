@@ -1,0 +1,3 @@
+vec4 shader(vec4 color, vec2 pos, vec2 screen_uv, vec4 params) {
+	return vec4(mix(color.rgb, params.rgb, params.a), color.a);
+}

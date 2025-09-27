@@ -1,0 +1,9 @@
+[submodule "deps/blibs"]
+	path = deps/blibs
+	url = https://github.com/bullno1/libs.git
+[submodule "deps/cute_framework"]
+	path = deps/cute_framework
+	url = https://github.com/RandyGaul/cute_framework.git
+[submodule "byteshift_strstr"]
+	path = deps/byteshift_strstr
+	url = https://github.com/taleinat/byteshift_strstr.git
