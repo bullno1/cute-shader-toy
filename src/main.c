@@ -206,15 +206,57 @@ reload_shader(const char* source) {
 				} else if (strcmp(value.str, "delta_time") == 0) {
 					uniform.source = DATA_SOURCE_DELTA_TIME;
 				}
+			} else if (
+				strcmp(key.str, "default") == 0
+				||
+				strcmp(key.str, "default.u") == 0
+				||
+				strcmp(key.str, "default.x") == 0
+				||
+				strcmp(key.str, "default.r") == 0
+				||
+				strcmp(key.str, "default.s") == 0
+			) {
+				uniform.data.float_value[0] = strtof(value.str, NULL);
+			} else if (
+				strcmp(key.str, "default.v") == 0
+				||
+				strcmp(key.str, "default.y") == 0
+				||
+				strcmp(key.str, "default.g") == 0
+				||
+				strcmp(key.str, "default.t") == 0
+			) {
+				uniform.data.float_value[1] = strtof(value.str, NULL);
+			} else if (
+				strcmp(key.str, "default.z") == 0
+				||
+				strcmp(key.str, "default.b") == 0
+				||
+				strcmp(key.str, "default.p") == 0
+			) {
+				uniform.data.float_value[2] = strtof(value.str, NULL);
+			} else if (
+				strcmp(key.str, "default.w") == 0
+				||
+				strcmp(key.str, "default.a") == 0
+				||
+				strcmp(key.str, "default.q") == 0
+			) {
+				uniform.data.float_value[3] = strtof(value.str, NULL);
 			}
 		}
 
 		if (uniform.name != NULL && uniform.type != CF_UNIFORM_TYPE_UNKNOWN) {
 			uniform.name = cf_sintern(uniform.name);
-			uniform_t old_uniform = previous_uniforms != NULL
-				? hfind(previous_uniforms, uniform.name)
-				: uniform;
-			uniform.data = old_uniform.data;
+
+			if (previous_uniforms != NULL) {
+				uniform_t* old_uniform = hfind_ptr(previous_uniforms, uniform.name);
+				if (old_uniform != NULL) {
+					uniform.data = old_uniform->data;
+				}
+			}
+
 			hadd(current_uniforms, uniform.name, uniform);
 		}
 	}
@@ -237,7 +279,7 @@ main(int argc, const char* argv[]) {
 	}
 
 	int options = CF_APP_OPTIONS_WINDOW_POS_CENTERED_BIT;
-	cf_make_app("cute shader toy", 0, 0, 0, 1280, 720, options, argv[0]);
+	cf_make_app("cute shader toy", 0, 0, 0, 1024, 768, options, argv[0]);
 	cf_app_init_imgui();
 	cf_set_fixed_timestep(60);
 	cf_app_set_vsync(true);
@@ -252,7 +294,7 @@ main(int argc, const char* argv[]) {
 	bresmon_watch(monitor, argv[1], handle_shader_changed, NULL);
 
 	CF_Sprite sprite = cf_make_demo_sprite();
-	cf_sprite_play(&sprite, "spin");
+	cf_sprite_play(&sprite, "hold_down");
 	float draw_scale = 5.f;
 	float attributes[4] = { 1.f, 1.f, 1.f, 1.f };
 	int attribute_type = 0;
