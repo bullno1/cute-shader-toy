@@ -20,10 +20,17 @@ typedef struct {
 	const str_t source;
 } parse_state_t;
 
+typedef enum {
+	DATA_SOURCE_UI = 0,
+	DATA_SOURCE_TIME,
+	DATA_SOURCE_DELTA_TIME,
+} data_source_t;
+
 typedef struct {
 	const char* name;
 	CF_UniformType type;
 	bool edit_as_color;
+	data_source_t source;
 	union {
 		int int_value[4];
 		float float_value[4];
@@ -41,12 +48,14 @@ next_line(parse_state_t* state, str_t* line) {
 	line->str = state->source.str + state->pos;
 	line->len = 0;
 	while (state->pos < state->source.len) {
+		char ch = state->source.str[state->pos];
 		++state->pos;
 		++line->len;
-		char ch = state->source.str[state->pos] == '\n';
-		if (ch == '\r' || ch == '\n') { break; }
+		if (ch == '\r' || ch == '\n') { ++state->pos; break; }
 	}
 
+	// Null-terminate
+	((char*)line->str)[line->len] = '\0';
 	return true;
 }
 
@@ -189,6 +198,14 @@ reload_shader(const char* source) {
 					uniform.edit_as_color = true;
 					uniform.type = CF_UNIFORM_TYPE_FLOAT4;
 				}
+			} else if (strcmp(key.str, "source") == 0) {
+				if (strcmp(value.str, "ui") == 0) {
+					uniform.source = DATA_SOURCE_UI;
+				} else if (strcmp(value.str, "time") == 0) {
+					uniform.source = DATA_SOURCE_TIME;
+				} else if (strcmp(value.str, "delta_time") == 0) {
+					uniform.source = DATA_SOURCE_DELTA_TIME;
+				}
 			}
 		}
 
@@ -256,6 +273,16 @@ main(int argc, const char* argv[]) {
 		cf_draw_scale(draw_scale, draw_scale);
 		for (int i = 0; i < hsize(current_uniforms); ++i) {
 			uniform_t* uniform = &current_uniforms[i];
+			switch (uniform->source) {
+				case DATA_SOURCE_UI: break;
+				case DATA_SOURCE_TIME:
+					uniform->data.float_value[0] = CF_SECONDS;
+					break;
+				case DATA_SOURCE_DELTA_TIME:
+					uniform->data.float_value[0] = CF_DELTA_TIME;
+					break;
+			}
+
 			cf_draw_set_uniform(uniform->name, &uniform->data, uniform->type, 1);
 		}
 
@@ -268,6 +295,8 @@ main(int argc, const char* argv[]) {
 			igSeparatorText("Uniforms");
 			for (int i = 0; i < hsize(current_uniforms); ++i) {
 				uniform_t* uniform = &current_uniforms[i];
+				if (uniform->source != DATA_SOURCE_UI) { continue; }
+
 				switch (uniform->type) {
 					case CF_UNIFORM_TYPE_INT:
 						igInputInt(uniform->name, uniform->data.int_value, 1, 1, ImGuiInputTextFlags_None);
