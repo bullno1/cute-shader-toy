@@ -43,5 +43,8 @@ The following keys are recognized.
   * `attribute.y`, `attribute.g`, `attribute.t`, `attribute.v`: The second component of the custom vertex attribute.
   * `attribute.z`, `attribute.b`, `attribute.p`: The third component of the custom vertex attribute.
   * `attribute.w`, `attribute.a`, `attribute.q`: The fourth component of the custom vertex attribute.
+* `min` (optional): The minimum value of a parameter in the UI.
+* `max` (optional): The maximum value of a parameter in the UI.
+* `step` (optional): The step value of a parameter in the UI.
 
 For an example, refer to [glitch.glsl](./glitch.glsl).

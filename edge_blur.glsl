@@ -1,5 +1,5 @@
 vec4 shader(vec4 color, vec2 pos, vec2 screen_uv, vec4 params) {
-	// @param name=blur_size type=float2 target=attribute default.x=0.6 default.y=0.6
+	// @param name=blur_size type=float2 target=attribute default.x=0.6 default.y=0.6 step=0.01
 	vec2 blur_size = params.xy;
 	vec4 original_color = texture(u_image, smooth_uv(v_uv, u_texture_size));
 	if (original_color.a > 0.0) { return original_color; }

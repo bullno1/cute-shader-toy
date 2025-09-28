@@ -42,6 +42,9 @@ typedef struct {
 	bool edit_as_color;
 	param_target_t target;
 	data_source_t source;
+	float min;
+	float max;
+	float step;
 	union {
 		int int_value[4];
 		float float_value[4];
@@ -191,7 +194,7 @@ reload_shader(const char* source) {
 			},
 		};
 
-		shader_param_t param = { 0 };
+		shader_param_t param = { .step = 1.0f };
 
 		str_t key, value;
 		while (next_kv(&decorator_state, &key, &value)) {
@@ -315,6 +318,14 @@ reload_shader(const char* source) {
 				) {
 					param.target = PARAM_TARGET_ATTR_W;
 				}
+			} else if (strcmp(key.str, "min") == 0) {
+				param.min = strtof(value.str, NULL);
+			} else if (strcmp(key.str, "max") == 0) {
+				param.max = strtof(value.str, NULL);
+			} else if (strcmp(key.str, "step") == 0) {
+				param.step = strtof(value.str, NULL);
+			} else {
+				fprintf(stderr, "Unknown attribute: %s\n", key.str);
 			}
 		}
 
@@ -443,32 +454,32 @@ main(int argc, const char* argv[]) {
 
 				switch (param->type) {
 					case CF_UNIFORM_TYPE_INT:
-						igInputInt(param->name, param->data.int_value, 1, 1, ImGuiInputTextFlags_None);
+						igSliderInt(param->name, param->data.int_value, param->min, param->max, "%d", ImGuiSliderFlags_None);
 						break;
 					case CF_UNIFORM_TYPE_INT2:
-						igInputInt2(param->name, param->data.int_value, ImGuiInputTextFlags_None);
+						igSliderInt2(param->name, param->data.int_value, param->min, param->max, "%d", ImGuiSliderFlags_None);
 						break;
 					case CF_UNIFORM_TYPE_INT4:
-						igInputInt4(param->name, param->data.int_value, ImGuiInputTextFlags_None);
+						igSliderInt4(param->name, param->data.int_value, param->min, param->max, "%d", ImGuiSliderFlags_None);
 						break;
 					case CF_UNIFORM_TYPE_FLOAT:
-						igInputFloat(param->name, param->data.float_value, 0.1f, 1.f, "%f", ImGuiInputTextFlags_None);
+						igDragFloat(param->name, param->data.float_value, param->step, param->min, param->max, "%f", ImGuiSliderFlags_None);
 						break;
 					case CF_UNIFORM_TYPE_FLOAT2:
-						igInputFloat2(param->name, param->data.float_value, "%f", ImGuiInputTextFlags_None);
+						igDragFloat2(param->name, param->data.float_value, param->step, param->min, param->max, "%f", ImGuiSliderFlags_None);
 						break;
 					case CF_UNIFORM_TYPE_FLOAT3:
 						if (param->edit_as_color) {
 							igColorEdit3(param->name, param->data.float_value, ImGuiInputTextFlags_None);
 						} else {
-							igInputFloat3(param->name, param->data.float_value, "%f", ImGuiInputTextFlags_None);
+							igDragFloat3(param->name, param->data.float_value, param->step, param->min, param->max, "%f", ImGuiSliderFlags_None);
 						}
 						break;
 					case CF_UNIFORM_TYPE_FLOAT4:
 						if (param->edit_as_color) {
 							igColorEdit4(param->name, param->data.float_value, ImGuiInputTextFlags_None);
 						} else {
-							igInputFloat4(param->name, param->data.float_value, "%f", ImGuiInputTextFlags_None);
+							igDragFloat4(param->name, param->data.float_value, param->step, param->min, param->max, "%f", ImGuiSliderFlags_None);
 						}
 						break;
 					default:
