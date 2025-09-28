@@ -28,20 +28,29 @@ typedef enum {
 	DATA_SOURCE_SCREEN_H,
 } data_source_t;
 
+typedef enum {
+	PARAM_TARGET_UNIFORM,
+	PARAM_TARGET_ATTR_X,
+	PARAM_TARGET_ATTR_Y,
+	PARAM_TARGET_ATTR_Z,
+	PARAM_TARGET_ATTR_W,
+} param_target_t;
+
 typedef struct {
 	const char* name;
 	CF_UniformType type;
 	bool edit_as_color;
+	param_target_t target;
 	data_source_t source;
 	union {
 		int int_value[4];
 		float float_value[4];
 	} data;
-} uniform_t;
+} shader_param_t;
 
 static CF_Shader current_shader = { 0 };
-static htbl uniform_t* previous_uniforms = NULL;
-static htbl uniform_t* current_uniforms = NULL;
+static htbl shader_param_t* previous_params = NULL;
+static htbl shader_param_t* current_params = NULL;
 
 static bool
 next_line(parse_state_t* state, str_t* line) {
@@ -133,6 +142,20 @@ read_file(const char* path) {
 	return content;
 }
 
+static inline size_t
+uniform_size(CF_UniformType type) {
+	switch (type) {
+		case CF_UNIFORM_TYPE_INT : return sizeof(int) * 1;
+		case CF_UNIFORM_TYPE_INT2: return sizeof(int) * 2;
+		case CF_UNIFORM_TYPE_INT4: return sizeof(int) * 4;
+		case CF_UNIFORM_TYPE_FLOAT : return sizeof(float) * 1;
+		case CF_UNIFORM_TYPE_FLOAT2: return sizeof(float) * 2;
+		case CF_UNIFORM_TYPE_FLOAT3: return sizeof(float) * 3;
+		case CF_UNIFORM_TYPE_FLOAT4: return sizeof(float) * 4;
+		default: return 0;
+	}
+}
+
 static void
 reload_shader(const char* source) {
 	printf("Reloading shader\n");
@@ -148,10 +171,10 @@ reload_shader(const char* source) {
 	parse_state_t state = { .source = { .str = source, .len = strlen(source) }};
 	str_t line;
 
-	htbl uniform_t* tmp = current_uniforms;
-	current_uniforms = previous_uniforms;
-	previous_uniforms = tmp;
-	hclear(current_uniforms);
+	htbl shader_param_t* tmp = current_params;
+	current_params = previous_params;
+	previous_params = tmp;
+	hclear(current_params);
 	while (next_line(&state, &line)) {
 		const char* decorator_pos = byteshift_memmem(
 			line.str, line.len,
@@ -168,49 +191,49 @@ reload_shader(const char* source) {
 			},
 		};
 
-		uniform_t uniform = { 0 };
+		shader_param_t param = { 0 };
 
 		str_t key, value;
 		while (next_kv(&decorator_state, &key, &value)) {
 			if (strcmp(key.str, "name") == 0) {
-				uniform.name = value.str;
+				param.name = value.str;
 			} else if (strcmp(key.str, "type") == 0) {
 				if (strcmp(value.str, "int") == 0) {
-					uniform.type = CF_UNIFORM_TYPE_INT;
+					param.type = CF_UNIFORM_TYPE_INT;
 				} else if (strcmp(value.str, "int2") == 0) {
-					uniform.type = CF_UNIFORM_TYPE_INT2;
+					param.type = CF_UNIFORM_TYPE_INT2;
 				} else if (strcmp(value.str, "int4") == 0) {
-					uniform.type = CF_UNIFORM_TYPE_INT4;
+					param.type = CF_UNIFORM_TYPE_INT4;
 				} else if (strcmp(value.str, "float") == 0) {
-					uniform.type = CF_UNIFORM_TYPE_FLOAT;
+					param.type = CF_UNIFORM_TYPE_FLOAT;
 				} else if (strcmp(value.str, "float2") == 0) {
-					uniform.type = CF_UNIFORM_TYPE_FLOAT2;
+					param.type = CF_UNIFORM_TYPE_FLOAT2;
 				} else if (strcmp(value.str, "float3") == 0) {
-					uniform.type = CF_UNIFORM_TYPE_FLOAT3;
+					param.type = CF_UNIFORM_TYPE_FLOAT3;
 				} else if (strcmp(value.str, "float4") == 0) {
-					uniform.type = CF_UNIFORM_TYPE_FLOAT4;
+					param.type = CF_UNIFORM_TYPE_FLOAT4;
 				} else if (strcmp(value.str, "color3") == 0) {
-					uniform.edit_as_color = true;
-					uniform.type = CF_UNIFORM_TYPE_FLOAT3;
+					param.edit_as_color = true;
+					param.type = CF_UNIFORM_TYPE_FLOAT3;
 				} else if (
 					strcmp(value.str, "color") == 0
 					||
 					strcmp(value.str, "color4") == 0
 				) {
-					uniform.edit_as_color = true;
-					uniform.type = CF_UNIFORM_TYPE_FLOAT4;
+					param.edit_as_color = true;
+					param.type = CF_UNIFORM_TYPE_FLOAT4;
 				}
 			} else if (strcmp(key.str, "source") == 0) {
 				if (strcmp(value.str, "ui") == 0) {
-					uniform.source = DATA_SOURCE_UI;
+					param.source = DATA_SOURCE_UI;
 				} else if (strcmp(value.str, "time") == 0) {
-					uniform.source = DATA_SOURCE_TIME;
+					param.source = DATA_SOURCE_TIME;
 				} else if (strcmp(value.str, "delta_time") == 0) {
-					uniform.source = DATA_SOURCE_DELTA_TIME;
+					param.source = DATA_SOURCE_DELTA_TIME;
 				} else if (strcmp(value.str, "screen.w") == 0) {
-					uniform.source = DATA_SOURCE_SCREEN_W;
+					param.source = DATA_SOURCE_SCREEN_W;
 				} else if (strcmp(value.str, "screen.h") == 0) {
-					uniform.source = DATA_SOURCE_SCREEN_H;
+					param.source = DATA_SOURCE_SCREEN_H;
 				}
 			} else if (
 				strcmp(key.str, "default") == 0
@@ -223,7 +246,7 @@ reload_shader(const char* source) {
 				||
 				strcmp(key.str, "default.s") == 0
 			) {
-				uniform.data.float_value[0] = strtof(value.str, NULL);
+				param.data.float_value[0] = strtof(value.str, NULL);
 			} else if (
 				strcmp(key.str, "default.v") == 0
 				||
@@ -233,7 +256,7 @@ reload_shader(const char* source) {
 				||
 				strcmp(key.str, "default.t") == 0
 			) {
-				uniform.data.float_value[1] = strtof(value.str, NULL);
+				param.data.float_value[1] = strtof(value.str, NULL);
 			} else if (
 				strcmp(key.str, "default.z") == 0
 				||
@@ -241,7 +264,7 @@ reload_shader(const char* source) {
 				||
 				strcmp(key.str, "default.p") == 0
 			) {
-				uniform.data.float_value[2] = strtof(value.str, NULL);
+				param.data.float_value[2] = strtof(value.str, NULL);
 			} else if (
 				strcmp(key.str, "default.w") == 0
 				||
@@ -249,21 +272,61 @@ reload_shader(const char* source) {
 				||
 				strcmp(key.str, "default.q") == 0
 			) {
-				uniform.data.float_value[3] = strtof(value.str, NULL);
+				param.data.float_value[3] = strtof(value.str, NULL);
+			} else if (strcmp(key.str, "target") == 0) {
+				if (strcmp(value.str, "uniform") == 0) {
+					param.target = PARAM_TARGET_UNIFORM;
+				} else if (
+					strcmp(value.str, "attribute.x") == 0
+					||
+					strcmp(value.str, "attribute.r") == 0
+					||
+					strcmp(value.str, "attribute.s") == 0
+					||
+					strcmp(value.str, "attribute.u") == 0
+				) {
+					param.target = PARAM_TARGET_ATTR_X;
+				} else if (
+					strcmp(value.str, "attribute.y") == 0
+					||
+					strcmp(value.str, "attribute.g") == 0
+					||
+					strcmp(value.str, "attribute.t") == 0
+					||
+					strcmp(value.str, "attribute.v") == 0
+				) {
+					param.target = PARAM_TARGET_ATTR_Y;
+				} else if (
+					strcmp(value.str, "attribute.z") == 0
+					||
+					strcmp(value.str, "attribute.b") == 0
+					||
+					strcmp(value.str, "attribute.p") == 0
+				) {
+					param.target = PARAM_TARGET_ATTR_Z;
+				} else if (
+					strcmp(value.str, "attribute.w") == 0
+					||
+					strcmp(value.str, "attribute.a") == 0
+					||
+					strcmp(value.str, "attribute.q") == 0
+				) {
+					param.target = PARAM_TARGET_ATTR_W;
+				}
 			}
 		}
 
-		if (uniform.name != NULL && uniform.type != CF_UNIFORM_TYPE_UNKNOWN) {
-			uniform.name = cf_sintern(uniform.name);
+		if (param.name != NULL && param.type != CF_UNIFORM_TYPE_UNKNOWN) {
+			param.name = cf_sintern(param.name);
 
-			if (previous_uniforms != NULL) {
-				uniform_t* old_uniform = hfind_ptr(previous_uniforms, uniform.name);
-				if (old_uniform != NULL) {
-					uniform.data = old_uniform->data;
+			if (previous_params != NULL) {
+				shader_param_t* old_param = hfind_ptr(previous_params, param.name);
+				if (old_param != NULL) {
+					param.data = old_param->data;
 				}
 			}
 
-			hadd(current_uniforms, uniform.name, uniform);
+			hadd(current_params, param.name, param);
 		}
 	}
 	printf("Shader reloaded\n");
@@ -302,7 +365,8 @@ main(int argc, const char* argv[]) {
 	CF_Sprite sprite = cf_make_demo_sprite();
 	cf_sprite_play(&sprite, "hold_down");
 	float draw_scale = 5.f;
-	float attributes[4] = { 0 };
+	// Make this extra big so the memcpy later is safe even with erroneous offset
+	float attributes[8] = { 0 };
 	int attribute_type = 0;
 	const char* attribute_types[] = {
 		"Color",
@@ -317,28 +381,52 @@ main(int argc, const char* argv[]) {
 		cf_sprite_update(&sprite);
 
 		if (current_shader.id) {  cf_draw_push_shader(current_shader); }
-		cf_draw_push_vertex_attributes(attributes[0], attributes[1], attributes[2], attributes[3]);
 		cf_draw_scale(draw_scale, draw_scale);
-		for (int i = 0; i < hsize(current_uniforms); ++i) {
-			uniform_t* uniform = &current_uniforms[i];
-			switch (uniform->source) {
+		for (int i = 0; i < hsize(current_params); ++i) {
+			shader_param_t* param = &current_params[i];
+			switch (param->source) {
 				case DATA_SOURCE_UI: break;
 				case DATA_SOURCE_TIME:
-					uniform->data.float_value[0] = CF_SECONDS;
+					param->data.float_value[0] = CF_SECONDS;
 					break;
 				case DATA_SOURCE_DELTA_TIME:
-					uniform->data.float_value[0] = CF_DELTA_TIME;
+					param->data.float_value[0] = CF_DELTA_TIME;
 					break;
 				case DATA_SOURCE_SCREEN_W:
-					uniform->data.int_value[0] = cf_app_get_width();
+					if (param->type == CF_UNIFORM_TYPE_INT) {
+						param->data.int_value[0] = cf_app_get_width();
+					} else {
+						param->data.float_value[0] = (float)cf_app_get_width();
+					}
 					break;
 				case DATA_SOURCE_SCREEN_H:
-					uniform->data.int_value[0] = cf_app_get_height();
+					if (param->type == CF_UNIFORM_TYPE_INT) {
+						param->data.int_value[0] = cf_app_get_height();
+					} else {
+						param->data.float_value[0] = (float)cf_app_get_height();
+					}
 					break;
 			}
 
-			cf_draw_set_uniform(uniform->name, &uniform->data, uniform->type, 1);
+			switch (param->target) {
+				case PARAM_TARGET_UNIFORM:
+					cf_draw_set_uniform(param->name, &param->data, param->type, 1);
+					break;
+				case PARAM_TARGET_ATTR_X:
+					memcpy(&attributes[0], &param->data, uniform_size(param->type));
+					break;
+				case PARAM_TARGET_ATTR_Y:
+					memcpy(&attributes[1], &param->data, uniform_size(param->type));
+					break;
+				case PARAM_TARGET_ATTR_Z:
+					memcpy(&attributes[2], &param->data, uniform_size(param->type));
+					break;
+				case PARAM_TARGET_ATTR_W:
+					memcpy(&attributes[3], &param->data, uniform_size(param->type));
+					break;
+			}
 		}
+		cf_draw_push_vertex_attributes(attributes[0], attributes[1], attributes[2], attributes[3]);
 
 		cf_draw_sprite(&sprite);
 
@@ -347,38 +435,38 @@ main(int argc, const char* argv[]) {
 			igInputFloat("Scale", &draw_scale, 1.f, 1.f, "%f", ImGuiInputTextFlags_None);
 
 			igSeparatorText("Uniforms");
-			for (int i = 0; i < hsize(current_uniforms); ++i) {
-				uniform_t* uniform = &current_uniforms[i];
-				if (uniform->source != DATA_SOURCE_UI) { continue; }
+			for (int i = 0; i < hsize(current_params); ++i) {
+				shader_param_t* param = &current_params[i];
+				if (param->source != DATA_SOURCE_UI) { continue; }
 
-				switch (uniform->type) {
+				switch (param->type) {
 					case CF_UNIFORM_TYPE_INT:
-						igInputInt(uniform->name, uniform->data.int_value, 1, 1, ImGuiInputTextFlags_None);
+						igInputInt(param->name, param->data.int_value, 1, 1, ImGuiInputTextFlags_None);
 						break;
 					case CF_UNIFORM_TYPE_INT2:
-						igInputInt2(uniform->name, uniform->data.int_value, ImGuiInputTextFlags_None);
+						igInputInt2(param->name, param->data.int_value, ImGuiInputTextFlags_None);
 						break;
 					case CF_UNIFORM_TYPE_INT4:
-						igInputInt4(uniform->name, uniform->data.int_value, ImGuiInputTextFlags_None);
+						igInputInt4(param->name, param->data.int_value, ImGuiInputTextFlags_None);
 						break;
 					case CF_UNIFORM_TYPE_FLOAT:
-						igInputFloat(uniform->name, uniform->data.float_value, 0.1f, 1.f, "%f", ImGuiInputTextFlags_None);
+						igInputFloat(param->name, param->data.float_value, 0.1f, 1.f, "%f", ImGuiInputTextFlags_None);
 						break;
 					case CF_UNIFORM_TYPE_FLOAT2:
-						igInputFloat2(uniform->name, uniform->data.float_value, "%f", ImGuiInputTextFlags_None);
+						igInputFloat2(param->name, param->data.float_value, "%f", ImGuiInputTextFlags_None);
 						break;
 					case CF_UNIFORM_TYPE_FLOAT3:
-						if (uniform->edit_as_color) {
-							igColorEdit3(uniform->name, uniform->data.float_value, ImGuiInputTextFlags_None);
+						if (param->edit_as_color) {
+							igColorEdit3(param->name, param->data.float_value, ImGuiInputTextFlags_None);
 						} else {
-							igInputFloat3(uniform->name, uniform->data.float_value, "%f", ImGuiInputTextFlags_None);
+							igInputFloat3(param->name, param->data.float_value, "%f", ImGuiInputTextFlags_None);
 						}
 						break;
 					case CF_UNIFORM_TYPE_FLOAT4:
-						if (uniform->edit_as_color) {
-							igColorEdit4(uniform->name, uniform->data.float_value, ImGuiInputTextFlags_None);
+						if (param->edit_as_color) {
+							igColorEdit4(param->name, param->data.float_value, ImGuiInputTextFlags_None);
 						} else {
-							igInputFloat4(uniform->name, uniform->data.float_value, "%f", ImGuiInputTextFlags_None);
+							igInputFloat4(param->name, param->data.float_value, "%f", ImGuiInputTextFlags_None);
 						}
 						break;
 					default:
@@ -402,8 +490,8 @@ main(int argc, const char* argv[]) {
 
 	cf_destroy_app();
 	bresmon_destroy(monitor);
-	hfree(previous_uniforms);
-	hfree(current_uniforms);
+	hfree(previous_params);
+	hfree(current_params);
 
 	return 0;
 }

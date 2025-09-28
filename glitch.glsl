@@ -1,19 +1,20 @@
 #define PI 3.14159265359
 
 layout (set = 3, binding = 1) uniform shd_uniforms {
-	// @param name=max_displacement type=float default=1.0
-	float max_displacement;
-	// @param name=normal_period type=float default=0.5
-	float normal_period;
-	// @param name=glitch_period type=float default=0.5
-	float glitch_period;
-	// @param name=time type=float source=time
-	float time;
 	// @param name=screen_height type=int source=screen.h
 	int screen_height;
 };
 
 vec4 shader(vec4 color, vec2 pos, vec2 screen_uv, vec4 params) {
+	// @param name=max_displacement type=float default=1.0 target=attribute.x
+	float max_displacement = params.x;
+	// @param name=normal_period type=float default=0.5 target=attribute.y
+	float normal_period = params.y;
+	// @param name=glitch_period type=float default=0.5 target=attribute.z
+	float glitch_period = params.z;
+	// @param name=time type=float source=time target=attribute.w
+	float time = params.w;
+
 	float time_offset = mod(time, normal_period + glitch_period);
 	if (time_offset < glitch_period) {
 		float displacement = max_displacement * sin(time_offset / glitch_period * PI * 2);
