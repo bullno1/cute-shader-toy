@@ -353,6 +353,56 @@ handle_shader_changed(const char* filename, void* userdata) {
 	free(file_content);
 }
 
+static void
+apply_shader(float* attributes) {
+	cf_draw_push_shader(current_shader);
+	for (int i = 0; i < hsize(current_params); ++i) {
+		shader_param_t* param = &current_params[i];
+		switch (param->source) {
+			case DATA_SOURCE_UI: break;
+			case DATA_SOURCE_TIME:
+				param->data.float_value[0] = CF_SECONDS;
+				break;
+			case DATA_SOURCE_DELTA_TIME:
+				param->data.float_value[0] = CF_DELTA_TIME;
+				break;
+			case DATA_SOURCE_SCREEN_W:
+				if (param->type == CF_UNIFORM_TYPE_INT) {
+					param->data.int_value[0] = cf_app_get_width();
+				} else {
+					param->data.float_value[0] = (float)cf_app_get_width();
+				}
+				break;
+			case DATA_SOURCE_SCREEN_H:
+				if (param->type == CF_UNIFORM_TYPE_INT) {
+					param->data.int_value[0] = cf_app_get_height();
+				} else {
+					param->data.float_value[0] = (float)cf_app_get_height();
+				}
+				break;
+		}
+
+		switch (param->target) {
+			case PARAM_TARGET_UNIFORM:
+				cf_draw_set_uniform(param->name, &param->data, param->type, 1);
+				break;
+			case PARAM_TARGET_ATTR_X:
+				memcpy(&attributes[0], &param->data, uniform_size(param->type));
+				break;
+			case PARAM_TARGET_ATTR_Y:
+				memcpy(&attributes[1], &param->data, uniform_size(param->type));
+				break;
+			case PARAM_TARGET_ATTR_Z:
+				memcpy(&attributes[2], &param->data, uniform_size(param->type));
+				break;
+			case PARAM_TARGET_ATTR_W:
+				memcpy(&attributes[3], &param->data, uniform_size(param->type));
+				break;
+		}
+	}
+	cf_draw_push_vertex_attributes(attributes[0], attributes[1], attributes[2], attributes[3]);
+}
+
 int
 main(int argc, const char* argv[]) {
 	if (argc != 2) {
@@ -386,6 +436,7 @@ main(int argc, const char* argv[]) {
 		"Vector",
 		0
 	};
+	bool use_shader = true;
 
 	while (cf_app_is_running()) {
 		bresmon_check(monitor, false);
@@ -393,58 +444,17 @@ main(int argc, const char* argv[]) {
 		cf_app_update(NULL);
 		cf_sprite_update(&sprite);
 
-		if (current_shader.id) {  cf_draw_push_shader(current_shader); }
 		cf_draw_scale(draw_scale, draw_scale);
-		for (int i = 0; i < hsize(current_params); ++i) {
-			shader_param_t* param = &current_params[i];
-			switch (param->source) {
-				case DATA_SOURCE_UI: break;
-				case DATA_SOURCE_TIME:
-					param->data.float_value[0] = CF_SECONDS;
-					break;
-				case DATA_SOURCE_DELTA_TIME:
-					param->data.float_value[0] = CF_DELTA_TIME;
-					break;
-				case DATA_SOURCE_SCREEN_W:
-					if (param->type == CF_UNIFORM_TYPE_INT) {
-						param->data.int_value[0] = cf_app_get_width();
-					} else {
-						param->data.float_value[0] = (float)cf_app_get_width();
-					}
-					break;
-				case DATA_SOURCE_SCREEN_H:
-					if (param->type == CF_UNIFORM_TYPE_INT) {
-						param->data.int_value[0] = cf_app_get_height();
-					} else {
-						param->data.float_value[0] = (float)cf_app_get_height();
-					}
-					break;
-			}
 
-			switch (param->target) {
-				case PARAM_TARGET_UNIFORM:
-					cf_draw_set_uniform(param->name, &param->data, param->type, 1);
-					break;
-				case PARAM_TARGET_ATTR_X:
-					memcpy(&attributes[0], &param->data, uniform_size(param->type));
-					break;
-				case PARAM_TARGET_ATTR_Y:
-					memcpy(&attributes[1], &param->data, uniform_size(param->type));
-					break;
-				case PARAM_TARGET_ATTR_Z:
-					memcpy(&attributes[2], &param->data, uniform_size(param->type));
-					break;
-				case PARAM_TARGET_ATTR_W:
-					memcpy(&attributes[3], &param->data, uniform_size(param->type));
-					break;
-			}
+		if (current_shader.id != 0&& use_shader) {
+			apply_shader(attributes);
 		}
-		cf_draw_push_vertex_attributes(attributes[0], attributes[1], attributes[2], attributes[3]);
 
 		cf_draw_sprite(&sprite);
 
 		if (igBegin("Shader", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
 			igSeparatorText("Sprite");
+			igCheckbox("Use shader", &use_shader);
 			igInputFloat("Scale", &draw_scale, 1.f, 1.f, "%f", ImGuiInputTextFlags_None);
 
 			igSeparatorText("Uniforms");

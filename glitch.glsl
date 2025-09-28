@@ -12,7 +12,7 @@ vec4 shader(vec4 color, vec2 pos, vec2 screen_uv, vec4 params) {
 	float normal_period = params.y;
 	// @param name=glitch_period type=float default=0.5 target=attribute.z step=0.1 min=0.0 max=10.0
 	float glitch_period = params.z;
-	// @param name=time type=float source=time target=attribute.w
+	// @param name=time type=float source=time target=attribute.w step=0.1
 	float time = params.w;
 
 	float time_offset = mod(time, normal_period + glitch_period);
