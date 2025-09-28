@@ -284,6 +284,8 @@ reload_shader(const char* source) {
 					strcmp(value.str, "attribute.s") == 0
 					||
 					strcmp(value.str, "attribute.u") == 0
+					||
+					strcmp(value.str, "attribute") == 0
 				) {
 					param.target = PARAM_TARGET_ATTR_X;
 				} else if (

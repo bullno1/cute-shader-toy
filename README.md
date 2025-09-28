@@ -39,7 +39,7 @@ The following keys are recognized.
 
   * `uniform`: Set the parameter as an uniform.
      This is the default.
-  * `attribute.x`, `attribute.r`, `attribute.s`, `attribute.u`: The first component of the custom [vertex attribute](https://randygaul.github.io/cute_framework/draw/cf_draw_push_vertex_attributes/).
+  * `attribute.x`, `attribute.r`, `attribute.s`, `attribute.u`, `attribute`: The first component of the custom [vertex attribute](https://randygaul.github.io/cute_framework/draw/cf_draw_push_vertex_attributes/).
   * `attribute.y`, `attribute.g`, `attribute.t`, `attribute.v`: The second component of the custom vertex attribute.
   * `attribute.z`, `attribute.b`, `attribute.p`: The third component of the custom vertex attribute.
   * `attribute.w`, `attribute.a`, `attribute.q`: The fourth component of the custom vertex attribute.

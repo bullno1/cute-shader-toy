@@ -1,18 +1,18 @@
 layout (set = 3, binding = 1) uniform shd_uniforms {
-	// @param name=glow_color type=color default.r=1.0 default.g=0.85 default.b=0.20 default.a=1.0
-	vec4 glow_color;
 	// @param name=glow_size type=float2 default.x=0.6 default.y=0.6
 	vec2 glow_size;
 };
 
 vec4 shader(vec4 color, vec2 pos, vec2 screen_uv, vec4 params) {
+	// @param name=glow_color type=color target=attribute default.r=1.0 default.g=0.85 default.b=0.20 default.a=1.0
+	vec4 glow_color = params;
 	vec4 original_color = texture(u_image, smooth_uv(v_uv, u_texture_size));
 	if (original_color.a > 0.0) { return original_color; }
 
 	vec4 new_color = vec4(glow_color.rgb, 0.0);
 	vec2 px_coord = v_uv * u_texture_size;
 	float max_distance = glow_size.x * glow_size.x + glow_size.y * glow_size.y;
-	float distance = max_distance;
+	float distance = 1.0 / 0.0;
 	float x_min = clamp(px_coord.x - glow_size.x, 0.0, u_texture_size.x);
 	float x_max = clamp(px_coord.x + glow_size.x, 0.0, u_texture_size.x);
 	float y_min = clamp(px_coord.y - glow_size.y, 0.0, u_texture_size.y);
@@ -31,7 +31,7 @@ vec4 shader(vec4 color, vec2 pos, vec2 screen_uv, vec4 params) {
 			}
 		}
 	}
-	new_color.a = (1.0 - sqrt(distance / max_distance));
+	new_color.a = clamp(1.0 - sqrt(distance) / sqrt(max_distance), 0.0, 1.0);
 
 	return new_color;
 }
