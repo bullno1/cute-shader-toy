@@ -2,11 +2,13 @@
 
 Shader-toy like tool for [Cute Framework](https://randygaul.github.io/cute_framework/).
 
+![screenshot](./screenshot.png)
+
 # How to use
 
 `bin/RelWithDebInfo/cute-shader-toy default.glsl`.
 
-As the shader will be automatically reloaded when it is updated.
+The shader will be automatically reloaded when it is updated.
 
 Special comments can be used to inform the program about uniforms so it can show them in the UI.
 
@@ -14,7 +16,8 @@ The syntax is as follow: `// @param key=value`.
 The following keys are recognized.
 
 * `name` (required): Name of the uniform.
-* `type` (required): Type of the uniform, the same type names as GLSL are recognized.
+* `type` (required): Type of the uniform.
+  One of: `float`, `float2`, `float3`, `float4`, `int`, `int2`, `int4`.
   In addition, `color3` and `color4` are aliases for `float3` and `float4` accordingly.
   But a color picker is shown in the UI instead.
   `color` is also an alias for `color4`.
@@ -24,6 +27,8 @@ The following keys are recognized.
     This is the default.
   * `time`: Automatically set to [`CF_SECONDS`](https://randygaul.github.io/cute_framework/time/cf_seconds/) every frame.
   * `delta_time`: Automatically set to [`CF_DELTA_TIME`](https://randygaul.github.io/cute_framework/time/cf_delta_time/) every frame.
+  * `screen.w`: The screen's width.
+  * `screen.h`: The screen's height.
 * `default` (optional): Default value for each uniform.
 
   * `default`, `default.x`, `default.r`, `default.u`, `default.s`: Set the first component.
