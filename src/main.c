@@ -1,4 +1,5 @@
 #include <bresmon.h>
+#include <bmacro.h>
 #include <cute.h>
 #include <cimgui.h>
 #include <stdbool.h>
@@ -35,6 +36,12 @@ typedef enum {
 	PARAM_TARGET_ATTR_Z,
 	PARAM_TARGET_ATTR_W,
 } param_target_t;
+
+typedef enum {
+	SHADER_MODE_OFF,
+	SHADER_MODE_SPRITE,
+	SHADER_MODE_SCREEN,
+} shader_mode_t;
 
 typedef struct {
 	const char* name;
@@ -415,7 +422,7 @@ main(int argc, const char* argv[]) {
 	cf_app_init_imgui();
 	cf_set_fixed_timestep(60);
 	cf_app_set_vsync(true);
-	cf_clear_color(0.5f, 0.5f, 0.5f, 1.f);
+	cf_clear_color(0.5f, 0.5f, 0.5f, 0.f);
 
 	char* file_content = read_file(argv[1]);
 	if (file_content == NULL) { return 1; }
@@ -436,7 +443,17 @@ main(int argc, const char* argv[]) {
 		"Vector",
 		0
 	};
-	bool use_shader = true;
+	int shader_mode = SHADER_MODE_SPRITE;
+	const char* shader_modes[] = {
+		"Off",
+		"Sprite",
+		"Screen",
+		0
+	};
+
+	CF_Canvas screen_canvas = cf_make_canvas(
+		cf_canvas_defaults(cf_app_get_width(), cf_app_get_height())
+	);
 
 	while (cf_app_is_running()) {
 		bresmon_check(monitor, false);
@@ -444,17 +461,28 @@ main(int argc, const char* argv[]) {
 		cf_app_update(NULL);
 		cf_sprite_update(&sprite);
 
-		cf_draw_scale(draw_scale, draw_scale);
-
-		if (current_shader.id != 0&& use_shader) {
+		if (current_shader.id != 0 && shader_mode == SHADER_MODE_SPRITE) {
 			apply_shader(attributes);
 		}
 
+		cf_draw_push();
+		cf_draw_scale(draw_scale, draw_scale);
 		cf_draw_sprite(&sprite);
+		cf_draw_pop();
+
+		if (current_shader.id != 0 && shader_mode == SHADER_MODE_SCREEN) {
+			apply_shader(attributes);
+			cf_render_to(screen_canvas, true);
+			cf_draw_canvas(
+				screen_canvas,
+				cf_v2(0.f, 0.f),
+				cf_v2(cf_app_get_width(), cf_app_get_height())
+			);
+		}
 
 		if (igBegin("Shader", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
 			igSeparatorText("Sprite");
-			igCheckbox("Use shader", &use_shader);
+			igCombo_Str_arr("Shader mode", &shader_mode, shader_modes, BCOUNT_OF(shader_modes) - 1, -1);
 			igInputFloat("Scale", &draw_scale, 1.f, 1.f, "%f", ImGuiInputTextFlags_None);
 
 			igSeparatorText("Uniforms");
@@ -498,7 +526,7 @@ main(int argc, const char* argv[]) {
 			}
 
 			igSeparatorText("Vertex attribute");
-			igCombo_Str_arr("Attribute type", &attribute_type, attribute_types, 2, -1);
+			igCombo_Str_arr("Attribute type", &attribute_type, attribute_types, BCOUNT_OF(attribute_types) - 1, -1);
 
 			if (attribute_type == 0) {
 				igColorEdit4("Color", attributes, ImGuiColorEditFlags_None);
