@@ -24,6 +24,8 @@ typedef enum {
 	DATA_SOURCE_UI = 0,
 	DATA_SOURCE_TIME,
 	DATA_SOURCE_DELTA_TIME,
+	DATA_SOURCE_SCREEN_W,
+	DATA_SOURCE_SCREEN_H,
 } data_source_t;
 
 typedef struct {
@@ -205,6 +207,10 @@ reload_shader(const char* source) {
 					uniform.source = DATA_SOURCE_TIME;
 				} else if (strcmp(value.str, "delta_time") == 0) {
 					uniform.source = DATA_SOURCE_DELTA_TIME;
+				} else if (strcmp(value.str, "screen.w") == 0) {
+					uniform.source = DATA_SOURCE_SCREEN_W;
+				} else if (strcmp(value.str, "screen.h") == 0) {
+					uniform.source = DATA_SOURCE_SCREEN_H;
 				}
 			} else if (
 				strcmp(key.str, "default") == 0
@@ -322,6 +328,12 @@ main(int argc, const char* argv[]) {
 					break;
 				case DATA_SOURCE_DELTA_TIME:
 					uniform->data.float_value[0] = CF_DELTA_TIME;
+					break;
+				case DATA_SOURCE_SCREEN_W:
+					uniform->data.int_value[0] = cf_app_get_width();
+					break;
+				case DATA_SOURCE_SCREEN_H:
+					uniform->data.int_value[0] = cf_app_get_height();
 					break;
 			}
 
