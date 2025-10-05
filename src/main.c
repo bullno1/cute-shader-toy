@@ -440,8 +440,14 @@ scan_for_sprites(dyna const char*** sprites) {
 		}
 	}
 	cf_fs_free_enumerated_directory(files);
+}
 
-	cf_array_push(*sprites, NULL);
+static void
+scan_for_animations(CF_Sprite* sprite, dyna const char*** animations) {
+	cf_array_clear(*animations);
+	for (int i = 0; i < hsize(sprite->animations); ++i) {
+		cf_array_push(*animations, sprite->animations[i]->name);
+	}
 }
 
 int
@@ -472,6 +478,10 @@ main(int argc, const char* argv[]) {
 
 	int sprite_index = 0;
 	CF_Sprite sprite = cf_make_demo_sprite();
+
+	dyna const char** animations = NULL;
+	scan_for_animations(&sprite, &animations);
+	int animation_index = 3;
 	cf_sprite_play(&sprite, "hold_down");
 
 	float draw_scale = 5.f;
@@ -481,14 +491,12 @@ main(int argc, const char* argv[]) {
 	const char* attribute_types[] = {
 		"Color",
 		"Vector",
-		0
 	};
 	int shader_mode = SHADER_MODE_SPRITE;
 	const char* shader_modes[] = {
 		"Off",
 		"Sprite",
 		"Screen",
-		0
 	};
 
 	CF_Canvas screen_canvas = cf_make_canvas(
@@ -523,7 +531,7 @@ main(int argc, const char* argv[]) {
 		if (igBegin("Shader", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
 			igSeparatorText("Sprite");
 
-			bool sprite_changed = igCombo_Str_arr("Sprite", &sprite_index, sprites, cf_array_len(sprites) - 1, -1);
+			bool sprite_changed = igCombo_Str_arr("Sprite", &sprite_index, sprites, cf_array_len(sprites), -1);
 			igSameLine(0.f, 10.f);
 			if (igButton("Rescan", (ImVec2){ 0 })) {
 				const char* old_sprite_name = sprites[sprite_index];
@@ -553,10 +561,18 @@ main(int argc, const char* argv[]) {
 					sprite = cf_make_sprite(sprite_name);
 				}
 				draw_scale = 1.f;
+				animation_index = 0;
+				scan_for_animations(&sprite, &animations);
+				cf_sprite_play(&sprite, animations[animation_index]);
 			}
 
-			igCombo_Str_arr("Shader mode", &shader_mode, shader_modes, BCOUNT_OF(shader_modes) - 1, -1);
+			if (igCombo_Str_arr("Animation", &animation_index, animations, asize(animations), -1)) {
+				cf_sprite_play(&sprite, animations[animation_index]);
+			}
+
 			igInputFloat("Scale", &draw_scale, 0.1f, 1.f, "%f", ImGuiInputTextFlags_None);
+
+			igCombo_Str_arr("Shader mode", &shader_mode, shader_modes, BCOUNT_OF(shader_modes), -1);
 
 			igSeparatorText("Uniforms");
 			for (int i = 0; i < hsize(current_params); ++i) {
@@ -599,7 +615,7 @@ main(int argc, const char* argv[]) {
 			}
 
 			igSeparatorText("Vertex attribute");
-			igCombo_Str_arr("Attribute type", &attribute_type, attribute_types, BCOUNT_OF(attribute_types) - 1, -1);
+			igCombo_Str_arr("Attribute type", &attribute_type, attribute_types, BCOUNT_OF(attribute_types), -1);
 
 			if (attribute_type == 0) {
 				igColorEdit4("Color", attributes, ImGuiColorEditFlags_None);
@@ -617,6 +633,7 @@ main(int argc, const char* argv[]) {
 	hfree(previous_params);
 	hfree(current_params);
 	afree(sprites);
+	afree(animations);
 
 	return 0;
 }
