@@ -410,6 +410,40 @@ apply_shader(float* attributes) {
 	cf_draw_push_vertex_attributes(attributes[0], attributes[1], attributes[2], attributes[3]);
 }
 
+static bool
+str_ends_with(const char *str, const char *suffix) {
+	if (!str || !suffix) { return false; }
+	size_t lenstr = strlen(str);
+	size_t lensuffix = strlen(suffix);
+	if (lensuffix > lenstr) { return false; }
+
+	return strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
+}
+
+static void
+scan_for_sprites(dyna const char*** sprites) {
+	cf_array_clear(*sprites);
+	const char* name = cf_sintern("demo_sprite");
+	cf_array_push(*sprites, name);
+
+	const char** files = cf_fs_enumerate_directory("/");
+	for (const char** itr = files; *itr != NULL; ++itr) {
+		if (
+			str_ends_with(*itr, ".ase")
+			||
+			str_ends_with(*itr, ".aseprite")
+			||
+			str_ends_with(*itr, ".png")
+		) {
+			const char* name = cf_sintern(*itr);
+			cf_array_push(*sprites, name);
+		}
+	}
+	cf_fs_free_enumerated_directory(files);
+
+	cf_array_push(*sprites, NULL);
+}
+
 int
 main(int argc, const char* argv[]) {
 	if (argc != 2) {
@@ -419,6 +453,7 @@ main(int argc, const char* argv[]) {
 
 	int options = CF_APP_OPTIONS_WINDOW_POS_CENTERED_BIT;
 	cf_make_app("cute shader toy", 0, 0, 0, 1024, 768, options, argv[0]);
+	cf_fs_mount(cf_fs_get_working_directory(), "/", true);
 	cf_app_init_imgui();
 	cf_set_fixed_timestep(60);
 	cf_app_set_vsync(true);
@@ -432,8 +467,13 @@ main(int argc, const char* argv[]) {
 	bresmon_t* monitor = bresmon_create(NULL);
 	bresmon_watch(monitor, argv[1], handle_shader_changed, NULL);
 
+	dyna const char** sprites = NULL;
+	scan_for_sprites(&sprites);
+
+	int sprite_index = 0;
 	CF_Sprite sprite = cf_make_demo_sprite();
 	cf_sprite_play(&sprite, "hold_down");
+
 	float draw_scale = 5.f;
 	// Make this extra big so the memcpy later is safe even with erroneous offset
 	float attributes[8] = { 0 };
@@ -482,8 +522,41 @@ main(int argc, const char* argv[]) {
 
 		if (igBegin("Shader", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
 			igSeparatorText("Sprite");
+
+			bool sprite_changed = igCombo_Str_arr("Sprite", &sprite_index, sprites, cf_array_len(sprites) - 1, -1);
+			igSameLine(0.f, 10.f);
+			if (igButton("Rescan", (ImVec2){ 0 })) {
+				const char* old_sprite_name = sprites[sprite_index];
+				scan_for_sprites(&sprites);
+				bool found = false;
+				for (int i = 0; i < cf_array_len(sprites); ++i) {
+					if (old_sprite_name == sprites[i]) {
+						sprite_index = i;
+						found = true;
+						break;
+					}
+				}
+
+				if (!found) {
+					sprite_index = 0;
+					sprite_changed = true;
+				}
+			}
+
+			if (sprite_changed) {
+				const char* sprite_name = sprites[sprite_index];
+				if (sprite_name == cf_sintern("demo_sprite")) {
+					sprite = cf_make_demo_sprite();
+				} else if (str_ends_with(sprite_name, ".png")) {
+					sprite = cf_make_easy_sprite_from_png(sprite_name, NULL);
+				} else {
+					sprite = cf_make_sprite(sprite_name);
+				}
+				draw_scale = 1.f;
+			}
+
 			igCombo_Str_arr("Shader mode", &shader_mode, shader_modes, BCOUNT_OF(shader_modes) - 1, -1);
-			igInputFloat("Scale", &draw_scale, 1.f, 1.f, "%f", ImGuiInputTextFlags_None);
+			igInputFloat("Scale", &draw_scale, 0.1f, 1.f, "%f", ImGuiInputTextFlags_None);
 
 			igSeparatorText("Uniforms");
 			for (int i = 0; i < hsize(current_params); ++i) {
@@ -543,6 +616,7 @@ main(int argc, const char* argv[]) {
 	bresmon_destroy(monitor);
 	hfree(previous_params);
 	hfree(current_params);
+	afree(sprites);
 
 	return 0;
 }
