@@ -5,7 +5,7 @@ layout (set = 3, binding = 1) uniform shd_uniforms {
     float hue;
 };
 
-vec4 shader(vec4 color, vec2 pos, vec2 screen_uv, vec4 params) {
+vec4 shader(vec4 color, ShaderParams params) {
 	vec3 hsv = rgb_to_hsv(color.rgb);
 	vec4 new_olor = vec4(hsv_to_rgb(vec3(hue, 0.0, 0.0) + hsv), color.a);
 	return new_olor;

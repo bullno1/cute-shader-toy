@@ -1,7 +1,7 @@
 #include <bresmon.h>
 #include <bmacro.h>
 #include <cute.h>
-#include <cimgui.h>
+#include <dcimgui.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,8 +59,8 @@ typedef struct {
 } shader_param_t;
 
 static CF_Shader current_shader = { 0 };
-static htbl shader_param_t* previous_params = NULL;
-static htbl shader_param_t* current_params = NULL;
+static CK_MAP(shader_param_t) previous_params = NULL;
+static CK_MAP(shader_param_t) current_params = NULL;
 
 static bool
 next_line(parse_state_t* state, str_t* line) {
@@ -181,10 +181,10 @@ reload_shader(const char* source) {
 	parse_state_t state = { .source = { .str = source, .len = strlen(source) }};
 	str_t line;
 
-	htbl shader_param_t* tmp = current_params;
+	CK_MAP(shader_param_t) tmp = current_params;
 	current_params = previous_params;
 	previous_params = tmp;
-	hclear(current_params);
+	map_clear(current_params);
 	while (next_line(&state, &line)) {
 		const char* decorator_pos = byteshift_memmem(
 			line.str, line.len,
@@ -340,13 +340,13 @@ reload_shader(const char* source) {
 			param.name = cf_sintern(param.name);
 
 			if (previous_params != NULL) {
-				shader_param_t* old_param = hfind_ptr(previous_params, param.name);
+				shader_param_t* old_param = map_get_ptr(previous_params, param.name);
 				if (old_param != NULL) {
 					param.data = old_param->data;
 				}
 			}
 
-			hadd(current_params, param.name, param);
+			map_set(current_params, param.name, param);
 		}
 	}
 	printf("Shader reloaded\n");
@@ -363,7 +363,7 @@ handle_shader_changed(const char* filename, void* userdata) {
 static void
 apply_shader(float* attributes) {
 	cf_draw_push_shader(current_shader);
-	for (int i = 0; i < hsize(current_params); ++i) {
+	for (int i = 0; i < map_size(current_params); ++i) {
 		shader_param_t* param = &current_params[i];
 		switch (param->source) {
 			case DATA_SOURCE_UI: break;
@@ -445,8 +445,8 @@ scan_for_sprites(dyna const char*** sprites) {
 static void
 scan_for_animations(CF_Sprite* sprite, dyna const char*** animations) {
 	cf_array_clear(*animations);
-	for (int i = 0; i < hsize(sprite->animations); ++i) {
-		cf_array_push(*animations, sprite->animations[i]->name);
+	for (int i = 0; i < cf_sprite_animation_count(sprite); ++i) {
+		cf_array_push(*animations, cf_sprite_animation_name_at(sprite, i));
 	}
 }
 
@@ -493,11 +493,11 @@ main(int argc, const char* argv[]) {
 		"Vector",
 	};
 	int shader_mode = SHADER_MODE_SPRITE;
-	const char* shader_modes[] = {
-		"Off",
-		"Sprite",
-		"Screen",
-	};
+	/*const char* shader_modes[] = {*/
+		/*"Off",*/
+		/*"Sprite",*/
+		/*"Screen",*/
+	/*};*/
 
 	CF_Canvas screen_canvas = cf_make_canvas(
 		cf_canvas_defaults(cf_app_get_width(), cf_app_get_height())
@@ -528,16 +528,16 @@ main(int argc, const char* argv[]) {
 			);
 		}
 
-		if (igBegin("Shader", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-			igSeparatorText("Sprite");
+		if (ImGui_Begin("Shader", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+			ImGui_SeparatorText("Sprite");
 
-			bool sprite_changed = igCombo_Str_arr("Sprite", &sprite_index, sprites, cf_array_len(sprites), -1);
-			igSameLine(0.f, 10.f);
-			if (igButton("Rescan", (ImVec2){ 0 })) {
+			bool sprite_changed = ImGui_ComboChar("Sprite", &sprite_index, sprites, cf_array_count(sprites));
+			ImGui_SameLineEx(0.f, 10.f);
+			if (ImGui_Button("Rescan")) {
 				const char* old_sprite_name = sprites[sprite_index];
 				scan_for_sprites(&sprites);
 				bool found = false;
-				for (int i = 0; i < cf_array_len(sprites); ++i) {
+				for (int i = 0; i < cf_array_count(sprites); ++i) {
 					if (old_sprite_name == sprites[i]) {
 						sprite_index = i;
 						found = true;
@@ -566,47 +566,45 @@ main(int argc, const char* argv[]) {
 				cf_sprite_play(&sprite, animations[animation_index]);
 			}
 
-			if (igCombo_Str_arr("Animation", &animation_index, animations, asize(animations), -1)) {
+			if (ImGui_ComboChar("Animation", &animation_index, animations, asize(animations))) {
 				cf_sprite_play(&sprite, animations[animation_index]);
 			}
 
-			igInputFloat("Scale", &draw_scale, 0.1f, 1.f, "%f", ImGuiInputTextFlags_None);
+			ImGui_InputFloat("Scale", &draw_scale);
 
-			igCombo_Str_arr("Shader mode", &shader_mode, shader_modes, BCOUNT_OF(shader_modes), -1);
-
-			igSeparatorText("Uniforms");
-			for (int i = 0; i < hsize(current_params); ++i) {
+			ImGui_SeparatorText("Uniforms");
+			for (int i = 0; i < map_size(current_params); ++i) {
 				shader_param_t* param = &current_params[i];
 				if (param->source != DATA_SOURCE_UI) { continue; }
 
 				switch (param->type) {
 					case CF_UNIFORM_TYPE_INT:
-						igSliderInt(param->name, param->data.int_value, param->min, param->max, "%d", ImGuiSliderFlags_None);
+						ImGui_SliderInt(param->name, param->data.int_value, param->min, param->max);
 						break;
 					case CF_UNIFORM_TYPE_INT2:
-						igSliderInt2(param->name, param->data.int_value, param->min, param->max, "%d", ImGuiSliderFlags_None);
+						ImGui_SliderInt2(param->name, param->data.int_value, param->min, param->max);
 						break;
 					case CF_UNIFORM_TYPE_INT4:
-						igSliderInt4(param->name, param->data.int_value, param->min, param->max, "%d", ImGuiSliderFlags_None);
+						ImGui_SliderInt4(param->name, param->data.int_value, param->min, param->max);
 						break;
 					case CF_UNIFORM_TYPE_FLOAT:
-						igDragFloat(param->name, param->data.float_value, param->step, param->min, param->max, "%f", ImGuiSliderFlags_None);
+						ImGui_DragFloatEx(param->name, param->data.float_value, param->step, param->min, param->max, "%f", ImGuiSliderFlags_None);
 						break;
 					case CF_UNIFORM_TYPE_FLOAT2:
-						igDragFloat2(param->name, param->data.float_value, param->step, param->min, param->max, "%f", ImGuiSliderFlags_None);
+						ImGui_DragFloat2Ex(param->name, param->data.float_value, param->step, param->min, param->max, "%f", ImGuiSliderFlags_None);
 						break;
 					case CF_UNIFORM_TYPE_FLOAT3:
 						if (param->edit_as_color) {
-							igColorEdit3(param->name, param->data.float_value, ImGuiInputTextFlags_None);
+							ImGui_ColorEdit3(param->name, param->data.float_value, ImGuiInputTextFlags_None);
 						} else {
-							igDragFloat3(param->name, param->data.float_value, param->step, param->min, param->max, "%f", ImGuiSliderFlags_None);
+							ImGui_DragFloat3Ex(param->name, param->data.float_value, param->step, param->min, param->max, "%f", ImGuiSliderFlags_None);
 						}
 						break;
 					case CF_UNIFORM_TYPE_FLOAT4:
 						if (param->edit_as_color) {
-							igColorEdit4(param->name, param->data.float_value, ImGuiInputTextFlags_None);
+							ImGui_ColorEdit4(param->name, param->data.float_value, ImGuiInputTextFlags_None);
 						} else {
-							igDragFloat4(param->name, param->data.float_value, param->step, param->min, param->max, "%f", ImGuiSliderFlags_None);
+							ImGui_DragFloat4Ex(param->name, param->data.float_value, param->step, param->min, param->max, "%f", ImGuiSliderFlags_None);
 						}
 						break;
 					default:
@@ -614,24 +612,24 @@ main(int argc, const char* argv[]) {
 				}
 			}
 
-			igSeparatorText("Vertex attribute");
-			igCombo_Str_arr("Attribute type", &attribute_type, attribute_types, BCOUNT_OF(attribute_types), -1);
+			ImGui_SeparatorText("Vertex attribute");
+			ImGui_ComboChar("Attribute type", &attribute_type, attribute_types, BCOUNT_OF(attribute_types));
 
 			if (attribute_type == 0) {
-				igColorEdit4("Color", attributes, ImGuiColorEditFlags_None);
+				ImGui_ColorEdit4("Color", attributes, ImGuiColorEditFlags_None);
 			} else {
-				igInputFloat4("Vector", attributes, "%f", ImGuiInputTextFlags_None);
+				ImGui_InputFloat4("Vector", attributes);
 			}
 		}
-		igEnd();
+		ImGui_End();
 
 		cf_app_draw_onto_screen(true);
 	}
 
 	cf_destroy_app();
 	bresmon_destroy(monitor);
-	hfree(previous_params);
-	hfree(current_params);
+	map_free(previous_params);
+	map_free(current_params);
 	afree(sprites);
 	afree(animations);
 
